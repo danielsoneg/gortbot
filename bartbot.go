@@ -1,7 +1,6 @@
 package main
 
 import "net/http"
-//import "io"
 import "io/ioutil"
 import "encoding/json"
 import "fmt"
@@ -14,7 +13,7 @@ type Loc struct {
 	lon float64
 }
 type Station struct {
-	loc Loc
+	loc  Loc
 	name string
 	dest []string
 	abbr string
@@ -33,17 +32,17 @@ func radians(deg float64) float64 {
 }
 
 func get_estimates(s Station) ([]byte, error) {
-  url := fmt.Sprintf(BART_ETD, s.abbr, s.dir)
-  resp, err := http.Get(url)
-  if err != nil {
-    return nil, err
-  }
-  defer resp.Body.Close()
-  contents, err := ioutil.ReadAll(resp.Body)
-  if err != nil {
-    return nil, err
-  }
-  return contents, nil
+	url := fmt.Sprintf(BART_ETD, s.abbr, s.dir)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	contents, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return contents, nil
 }
 
 func dist(from, to Loc) float64 {
@@ -65,76 +64,76 @@ func nearest(from Loc, a, b Station) Station {
 }
 
 type Response struct {
-  Station string            `json:"station"`
-  Abbr    string            `json:"abbr"`
-  Dest    string            `json:"dest"`
-  Trains  []bartparse.Train `json:"trains"`
+	Station string            `json:"station"`
+	Abbr    string            `json:"abbr"`
+	Dest    string            `json:"dest"`
+	Trains  []bartparse.Train `json:"trains"`
 }
 
 func fmt_estimates(line bartparse.Line, station Station) []byte {
-  resp := Response{station.name, station.abbr, line.Dest, line.Trains}
-  js, _ := json.MarshalIndent(resp, "", "  ")
-  return js
+	resp := Response{station.name, station.abbr, line.Dest, line.Trains}
+	js, _ := json.MarshalIndent(resp, "", "  ")
+	return js
 }
 
 func find_trains(here Loc) (js []byte, err error) {
 	cvc := Station{
 		Loc{37.779471, -122.413809}, "Civic Center",
-    []string{"RICH", "PITT"},
+		[]string{"RICH", "PITT"},
 		"civc", "n",
 	}
 	brk := Station{
 		Loc{37.869842, -122.267986}, "Downtown Berkeley",
-    []string{"MLBR", "DALY", "FRMT"},
+		[]string{"MLBR", "DALY", "FRMT"},
 		"dbrk", "s",
 	}
-  station := nearest(here, cvc, brk)
-  xml, err := get_estimates(station)
-  if (err != nil) {
-    return js, fmt.Errorf("Error talking to Bart: %s", err)
-  }
-  lines, _ := bartparse.Get_lines(xml)
-  if (err != nil) {
-    return js, fmt.Errorf("Could not read Bart's response", err)
-  }
-  line, err := bartparse.Filter_lines(lines, station.dest)
-  if (err != nil) {
-    return js, fmt.Errorf("Couldn't find an available train")
-  }
-  js = fmt_estimates(line, station)
-  return js, err
+	station := nearest(here, cvc, brk)
+	xml, err := get_estimates(station)
+	if err != nil {
+		return js, fmt.Errorf("Error talking to Bart: %s", err)
+	}
+	lines, _ := bartparse.Get_lines(xml)
+	if err != nil {
+		return js, fmt.Errorf("Could not read Bart's response", err)
+	}
+	line, err := bartparse.Filter_lines(lines, station.dest)
+	if err != nil {
+		return js, fmt.Errorf("Couldn't find an available train")
+	}
+	js = fmt_estimates(line, station)
+	return js, err
 }
 
 func read_latlon(r *http.Request) (Loc, error) {
-  lat_str, lon_str := r.PostFormValue("lat"), r.PostFormValue("lon")
-  if (lat_str == "" || lon_str == "") {
-    return Loc{0,0}, fmt.Errorf("Must include lat & lon")
-  }
-  lat, lat_err := strconv.ParseFloat(lat_str, 32)
-  lon, lon_err := strconv.ParseFloat(lon_str, 32)
-  if (lat_err != nil || lon_err != nil) {
-    errmsg := fmt.Sprintf("Bad values passed for lat & lon: %s, %s",
-                  lat_str, lon_str)
-    return Loc{0,0}, fmt.Errorf(errmsg)
-  }
-  return Loc{lat, lon}, nil
+	lat_str, lon_str := r.PostFormValue("lat"), r.PostFormValue("lon")
+	if lat_str == "" || lon_str == "" {
+		return Loc{0, 0}, fmt.Errorf("Must include lat & lon")
+	}
+	lat, lat_err := strconv.ParseFloat(lat_str, 32)
+	lon, lon_err := strconv.ParseFloat(lon_str, 32)
+	if lat_err != nil || lon_err != nil {
+		errmsg := fmt.Sprintf("Bad values passed for lat & lon: %s, %s",
+			lat_str, lon_str)
+		return Loc{0, 0}, fmt.Errorf(errmsg)
+	}
+	return Loc{lat, lon}, nil
 }
 
 func get_loc(w http.ResponseWriter, r *http.Request) {
-  w.Header().Set("Content-Type", "application/json")
-  loc, err := read_latlon(r)
-  if err != nil {
-    http.Error(w, fmt.Sprint(err), http.StatusBadRequest)
-    return
-  }
-  js, err := find_trains(loc)
-  if err != nil {
-    http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
-  }
-  w.Write(js)
+	w.Header().Set("Content-Type", "application/json")
+	loc, err := read_latlon(r)
+	if err != nil {
+		http.Error(w, fmt.Sprint(err), http.StatusBadRequest)
+		return
+	}
+	js, err := find_trains(loc)
+	if err != nil {
+		http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
+	}
+	w.Write(js)
 }
 
 func main() {
-  http.HandleFunc("/loc", get_loc)
-  http.ListenAndServe(":3000", nil)
+	http.HandleFunc("/loc", get_loc)
+	http.ListenAndServe(":3000", nil)
 }

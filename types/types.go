@@ -7,7 +7,7 @@ type Loc struct {
 	Lon float64
 }
 type Station struct {
-	Loc Loc
+	Loc  Loc
 	name string
 	dest []string
 	abbr string
@@ -17,4 +17,3 @@ type Station struct {
 func (l Station) String() string {
 	return fmt.Sprintf("%s", l.name)
 }
-
